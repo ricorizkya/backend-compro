@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -133,10 +134,21 @@ func isUniqueConstraintViolation(err error) bool {
 
 func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
     userID := c.Params("id")
-    id, err := strconv.Atoi(userID)
+    targetID, err := strconv.Atoi(userID)
     if err != nil {
         return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-            "error": "Invalid user ID",
+            "error": "Invalid user ID format",
+        })
+    }
+
+    // Dapatkan ID user yang melakukan request dari JWT
+    requesterID := c.Locals("userID").(int)
+    requesterRole := c.Locals("userRole").(models.UserRole)
+
+    // Authorization check
+    if requesterRole != models.RoleAdmin && requesterID != targetID {
+        return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+            "error": "You can only update your own profile",
         })
     }
 
@@ -147,19 +159,9 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
         })
     }
 
-    // Validasi minimal satu field diupdate
-    if req.Name == "" && req.Phone == "" && req.Username == "" && 
-       req.Password == "" && req.Role == "" && req.Status == nil {
-        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-            "error": "At least one field must be provided",
-        })
-    }
-
-    // Validasi role
-    if req.Role != "" && !isValidRole(req.Role) {
-        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-            "error": "Invalid role",
-        })
+    // Validasi input
+    if validationErr := validateUpdateRequest(req); validationErr != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(validationErr)
     }
 
     // Hash password jika diupdate
@@ -174,10 +176,8 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
         hashedPassword = string(hash)
     }
 
-    // Dapatkan user yang melakukan edit dari middleware auth
-    editedBy := c.Locals("userID").(int)
-
-    query, args := buildUpdateQuery(req, hashedPassword, editedBy, id)
+    // Build dynamic query
+    query, args := buildUpdateQuery(req, hashedPassword, requesterID, targetID, requesterRole)
     
     result, err := h.db.Exec(context.Background(), query, args...)
     if err != nil {
@@ -202,7 +202,34 @@ func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
     })
 }
 
-func buildUpdateQuery(req models.UpdateRequest, hashedPassword string, editedBy, id int) (string, []interface{}) {
+func validateUpdateRequest(req models.UpdateRequest) fiber.Map {
+    errors := make(fiber.Map)
+    
+    if req.Name != "" && len(req.Name) < 3 {
+        errors["name"] = "Name must be at least 3 characters"
+    }
+    
+    if req.Phone != "" {
+        if !isValidPhone(req.Phone) {
+            errors["phone"] = "Invalid phone number format"
+        }
+    }
+    
+    if req.Username != "" && !isAlphanumeric(req.Username) {
+        errors["username"] = "Username must be alphanumeric"
+    }
+    
+    if req.Password != "" && len(req.Password) < 8 {
+        errors["password"] = "Password must be at least 8 characters"
+    }
+    
+    if len(errors) > 0 {
+        return fiber.Map{"errors": errors}
+    }
+    return nil
+}
+
+func buildUpdateQuery(req models.UpdateRequest, hashedPassword string, editedBy, targetID int, requestRole models.UserRole) (string, []interface{}) {
     var query strings.Builder
     args := make([]interface{}, 0)
     counter := 1
@@ -233,19 +260,19 @@ func buildUpdateQuery(req models.UpdateRequest, hashedPassword string, editedBy,
         counter++
     }
     
-    if req.Role != "" {
+    if req.Role != "" && requestRole == models.RoleAdmin { // Gunakan requesterRole
         query.WriteString(fmt.Sprintf("role = $%d, ", counter))
         args = append(args, req.Role)
         counter++
     }
     
-    if req.Status != nil {
+    if req.Status != nil && requestRole == models.RoleAdmin { // Gunakan requesterRole
         query.WriteString(fmt.Sprintf("status = $%d, ", counter))
         args = append(args, *req.Status)
         counter++
     }
     
-    // Tambahkan edited_by dan haphis koma terakhir
+    // Update edited_by dan edited_at
     query.WriteString(fmt.Sprintf(
         "edited_by = $%d ",
         counter,
@@ -254,16 +281,21 @@ func buildUpdateQuery(req models.UpdateRequest, hashedPassword string, editedBy,
     counter++
     
     query.WriteString(fmt.Sprintf("WHERE id = $%d", counter))
-    args = append(args, id)
+    args = append(args, targetID)
     
     return query.String(), args
 }
 
-func isValidRole(role models.UserRole) bool {
-	switch role {
-	case models.RoleAdmin, models.RoleStaff, models.RoleUser:
-		return true
-	default:
-		return false
-	}
+func isAlphanumeric(s string) bool {
+    for _, r := range s {
+        if !unicode.IsLetter(r) && !unicode.IsNumber(r) {
+            return false
+        }
+    }
+    return true
+}
+
+func isValidPhone(phone string) bool {
+    // Implementasi validasi nomor telepon sesuai kebutuhan
+    return strings.HasPrefix(phone, "+") && len(phone) > 8
 }

@@ -45,5 +45,5 @@ type UpdateRequest struct {
     Username string   `json:"username,omitempty"`
     Password string   `json:"password,omitempty"`
     Role     UserRole `json:"role,omitempty"`
-    Status   *bool    `json:"status,omitempty"` // Pointer untuk handle null
+    Status   *bool    `json:"status,omitempty"`
 }
