@@ -45,6 +45,7 @@ func main() {
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(database.DB)
 	authHandler := handlers.NewAuthHandler(database.DB)
+	carouselHandler := handlers.NewCarouselHandler(database.DB)
 
 	// Routes
 	app.Post("/login", authHandler.Login)
@@ -60,6 +61,10 @@ func main() {
 		protected.Post("/users", userHandler.CreateUser)
 		protected.Put("/users/:id", userHandler.UpdateUser)
 		protected.Delete("/users/:id", userHandler.DeleteUser)
+
+		protected.Post("/carousel", carouselHandler.CreateCarousel)
+		// adminGroup := protected.Group("", middleware.AdminMiddleware)
+		// adminGroup.Post("/carousel", carouselHandler.CreateCarousel)
 	}
 
 	// Start server
