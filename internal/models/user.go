@@ -39,6 +39,7 @@ type CreateRequest struct {
     Role     UserRole `json:"role,omitempty"`
 }
 
+// UpdateRequest struktur untuk input update user
 type UpdateRequest struct {
     Name     string   `json:"name,omitempty"`
     Phone    string   `json:"phone,omitempty"`
@@ -46,4 +47,18 @@ type UpdateRequest struct {
     Password string   `json:"password,omitempty"`
     Role     UserRole `json:"role,omitempty"`
     Status   *bool    `json:"status,omitempty"`
+}
+
+// UserResponse struktur untuk output user
+type UserResponse struct {
+    ID        int        `json:"id"`
+    Name      string     `json:"name"`
+    Phone     string     `json:"phone"`
+    Username  string     `json:"username"`
+    Role      UserRole   `json:"role"`
+    Status    bool       `json:"status"`
+    CreatedAt time.Time  `json:"created_at"`
+    CreatedBy *int       `json:"created_by"`
+    EditedAt  *time.Time `json:"edited_at"`
+    EditedBy  *int       `json:"edited_by"`
 }

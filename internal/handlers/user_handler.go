@@ -4,8 +4,10 @@ import (
 	"backend-go/internal/models"
 	"context"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/gofiber/fiber/v2"
@@ -132,6 +134,21 @@ func isUniqueConstraintViolation(err error) bool {
 	return err.Error()[0:5] == "ERROR" && err.Error()[6:10] == "23505"
 }
 
+// UpdateUser godoc
+// @Summary      Update user data
+// @Description  Update existing user's information
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        id   path      int                  true  "User ID"
+// @Param        user body      models.UpdateRequest true  "User Data"
+// @Security     ApiKeyAuth
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]string
+// @Failure      403  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /users/{id} [put]
 func (h *UserHandler) UpdateUser(c *fiber.Ctx) error {
     userID := c.Params("id")
     targetID, err := strconv.Atoi(userID)
@@ -298,4 +315,206 @@ func isAlphanumeric(s string) bool {
 func isValidPhone(phone string) bool {
     // Implementasi validasi nomor telepon sesuai kebutuhan
     return strings.HasPrefix(phone, "+") && len(phone) > 8
+}
+
+// GetUsers godoc
+// @Summary      Get all users
+// @Description  Get list of users with pagination
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        page    query     int      false  "Page number"     default(1)
+// @Param        limit   query     int      false  "Items per page"  default(10)
+// @Param        role    query     string   false  "Filter by role"
+// @Param        status  query     bool     false  "Filter by status"
+// @Security     ApiKeyAuth
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /users [get]
+func (h *UserHandler) GetUsers(c *fiber.Ctx) error {
+    // Authorization - hanya admin yang bisa akses
+    requesterRole := c.Locals("userRole").(models.UserRole)
+    if requesterRole != models.RoleAdmin {
+        return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+            "error": "Admin access required",
+        })
+    }
+
+    // Parse query parameters
+    page, _ := strconv.Atoi(c.Query("page", "1"))
+    limit, _ := strconv.Atoi(c.Query("limit", "10"))
+    role := c.Query("role")
+    status := c.Query("status")
+
+    // Validasi input
+    if page < 1 {
+        page = 1
+    }
+    if limit < 1 || limit > 100 {
+        limit = 10
+    }
+    offset := (page - 1) * limit
+
+    // Build query
+    query := `SELECT 
+                id, name, phone, username, role, status, 
+                created_at, created_by, edited_at, edited_by 
+              FROM users 
+              WHERE deleted_at IS NULL`
+    args := []interface{}{}
+    paramCounter := 1
+
+    // Filter role
+    if role != "" {
+        query += fmt.Sprintf(" AND role = $%d", paramCounter)
+        args = append(args, role)
+        paramCounter++
+    }
+
+    // Filter status
+    if status != "" {
+        query += fmt.Sprintf(" AND status = $%d", paramCounter)
+        args = append(args, status == "true")
+        paramCounter++
+    }
+
+    // Add pagination
+    query += fmt.Sprintf(" ORDER BY id LIMIT $%d OFFSET $%d", paramCounter, paramCounter+1)
+    args = append(args, limit, offset)
+
+    // Eksekusi query
+    rows, err := h.db.Query(context.Background(), query, args...)
+    if err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "Failed to fetch users",
+        })
+    }
+    defer rows.Close()
+
+    var users []models.UserResponse
+    for rows.Next() {
+        var user models.UserResponse
+        err := rows.Scan(
+            &user.ID,
+            &user.Name,
+            &user.Phone,
+            &user.Username,
+            &user.Role,
+            &user.Status,
+            &user.CreatedAt,
+            &user.CreatedBy,
+            &user.EditedAt,
+            &user.EditedBy,
+        )
+        if err != nil {
+            return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+                "error": "Failed to parse user data",
+            })
+        }
+        users = append(users, user)
+    }
+
+    // Get total count
+    countQuery := `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL`
+    countArgs := []interface{}{}
+    paramCounter = 1
+
+    if role != "" {
+        countQuery += fmt.Sprintf(" AND role = $%d", paramCounter)
+        countArgs = append(countArgs, role)
+        paramCounter++
+    }
+
+    if status != "" {
+        countQuery += fmt.Sprintf(" AND status = $%d", paramCounter)
+        countArgs = append(countArgs, status == "true")
+        paramCounter++
+    }
+
+    var total int
+    err = h.db.QueryRow(context.Background(), countQuery, countArgs...).Scan(&total)
+    if err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "Failed to get total users",
+        })
+    }
+
+    return c.JSON(fiber.Map{
+        "data": users,
+        "meta": fiber.Map{
+            "page":       page,
+            "limit":      limit,
+            "total":      total,
+            "totalPages": int(math.Ceil(float64(total) / float64(limit))),
+        },
+    })
+}
+
+// DeleteUser godoc
+// @Summary      Delete a user (soft delete)
+// @Description  Mark user as deleted by setting deleted_at timestamp
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        id   path      int  true  "User ID"
+// @Security     ApiKeyAuth
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]string
+// @Failure      403  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /users/{id} [delete]
+func (h * UserHandler) DeleteUser(c * fiber.Ctx) error {
+    // Dapatkan ID user target
+    userID := c.Params("id")
+    targetID, err := strconv.Atoi(userID)
+    if err != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": "Invalid user ID format",
+        })
+    }
+
+    // Dapatkan ID user yang melakukan request
+    adminID := c.Locals("userID").(int)
+    adminRole := c.Locals("userRole").(models.UserRole)
+
+    // Authorization: hanya admin yang bisa menghapus user
+    if adminRole != models.RoleAdmin {
+        return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+            "error": "Admin access required",
+        })
+    }
+
+    // Cegah admin menghapus dirinya sendiri
+    if targetID == adminID {
+        return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
+            "error": "Admin cannot delete their own account",
+        })
+    }
+
+    // Soft delete user
+    query := `
+        UPDATE users 
+        SET deleted_at = $1, deleted_by = $2 
+        WHERE id = $3 AND deleted_at IS NULL
+    `
+
+    result, err := h.db.Exec(context.Background(), query, time.Now().UTC(), adminID, targetID)
+
+    if err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "Failed to delete user",
+        })
+    }
+
+    if result.RowsAffected() == 0 {
+        return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+            "error": "User not found or already deleted",
+        })
+    }
+
+    return c.JSON(fiber.Map{
+        "message": "User deleted successfully",
+    })
 }

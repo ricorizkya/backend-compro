@@ -50,14 +50,16 @@ func main() {
 	app.Post("/login", authHandler.Login)
 
 	// Coba implementasi tanpa group
-	// app.Post("/logout", middleware.AuthMiddleware, authHandler.Logout)
+	// app.Get("/users", middleware.AuthMiddleware, userHandler.GetUsers)
 	
 	// Protected routes
 	protected := app.Group("", middleware.AuthMiddleware)
 	{
 		protected.Post("/logout", authHandler.Logout)
+		protected.Get("/users", userHandler.GetUsers)
 		protected.Post("/users", userHandler.CreateUser)
 		protected.Put("/users/:id", userHandler.UpdateUser)
+		protected.Delete("/users/:id", userHandler.DeleteUser)
 	}
 
 	// Start server
