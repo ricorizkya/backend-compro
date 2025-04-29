@@ -47,6 +47,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(database.DB)
 	carouselHandler := handlers.NewCarouselHandler(database.DB)
 	productHandler := handlers.NewProductHandler(database.DB)
+	portofolioImagesHandler := handlers.NewPortfolioHandler(database.DB)
 
 	// Routes
 	app.Post("/login", authHandler.Login)
@@ -57,21 +58,30 @@ func main() {
 	// Protected routes
 	protected := app.Group("", middleware.AuthMiddleware)
 	{
+		// Users
 		protected.Post("/logout", authHandler.Logout)
 		protected.Get("/users", userHandler.GetUsers)
 		protected.Post("/users", userHandler.CreateUser)
 		protected.Put("/users/:id", userHandler.UpdateUser)
 		protected.Delete("/users/:id", userHandler.DeleteUser)
 
+		// Carousels
 		protected.Post("/carousel", carouselHandler.CreateCarousel)
 		protected.Put("/carousel/:id", carouselHandler.UpdateCarousel)
 		protected.Delete("/carousel/:id", carouselHandler.DeleteCarousel)
 		protected.Get("/carousel", carouselHandler.GetCarousels)
 
+		// Products
 		protected.Post("/products", productHandler.CreateProduct)
 		protected.Put("/products/:id", productHandler.UpdateProduct)
 		protected.Delete("/products/:id", productHandler.DeleteProduct)
 		protected.Get("/products", productHandler.GetProducts)
+
+		// Portfolio Images
+		protected.Post("/portfolio/images", portofolioImagesHandler.CreatePortfolioImage)
+		protected.Put("/portfolio/images/:id", portofolioImagesHandler.UpdatePortfolioImage)
+		protected.Delete("/portfolio/images/:id", portofolioImagesHandler.DeletePortfolioImage)
+		protected.Get("/portfolio/images", portofolioImagesHandler.GetPortfolioImages)
 		// adminGroup := protected.Group("", middleware.AdminMiddleware)
 		// adminGroup.Post("/carousel", carouselHandler.CreateCarousel)
 	}
