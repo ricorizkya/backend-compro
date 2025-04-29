@@ -32,7 +32,8 @@ func NewUserHandler(db *pgxpool.Pool) *UserHandler {
 // @Failure      500  {object}  map[string]string
 // @Router       /users [post]
 func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
-	var req models.CreateRequest
+    createdBy := c.Locals("userID").(int)
+    var req models.CreateRequest
 	
 	// Parse request body
 	if err := c.BodyParser(&req); err != nil {
@@ -74,13 +75,13 @@ func (h *UserHandler) CreateUser(c *fiber.Ctx) error {
 
 	var userID int
 	err = h.db.QueryRow(context.Background(), query,
-		req.Name,
-		req.Phone,
-		req.Username,
-		string(hashedPassword),
-		req.Role,
-		req.CreatedBy,
-	).Scan(&userID)
+        req.Name,
+        req.Phone,
+        req.Username,
+        string(hashedPassword),
+        req.Role,
+        createdBy,
+    ).Scan(&userID)
 
 	if err != nil {
 		// Handle unique constraint violation

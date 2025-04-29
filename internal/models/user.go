@@ -32,13 +32,11 @@ type User struct {
 
 // CreateRequest struktur untuk input create user
 type CreateRequest struct {
-    Name      string   `json:"name" validate:"required,min=3"`
-    Phone     string   `json:"phone" validate:"required,e164"`
-    Username  string   `json:"username" validate:"required,alphanum"`
-    Password  string   `json:"password" validate:"required,min=8"`
-    Role      UserRole `json:"role" validate:"omitempty,oneof=admin staff user"`
-    CreatedBy *int      `json:"created_by"`
-    Status   *bool    `json:"status,omitempty"`
+    Name     string   `json:"name" validate:"required,min=3"`
+    Phone    string   `json:"phone" validate:"required,e164"`
+    Username string   `json:"username" validate:"required,alphanum"`
+    Password string   `json:"password" validate:"required,min=8"`
+    Role     UserRole `json:"role,omitempty"`
 }
 
 type UpdateRequest struct {

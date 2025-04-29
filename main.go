@@ -3,26 +3,63 @@ package main
 import (
 	"backend-go/internal/database"
 	"backend-go/internal/handlers"
+	"backend-go/internal/middleware"
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/joho/godotenv"
 )
 
 func main() {
-	err := database.InitDB("postgres://postgres:root@localhost:5432/dashboardlj?sslmode=disable")
+	// Load environment variables
+	err := godotenv.Load()
+	if err != nil {
+		log.Printf("Warning: .env file not found or error loading, using system environment variables")
+	}
+
+	// Setup database connection
+	dbConnString := fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s?sslmode=%s",
+		os.Getenv("DB_USER"),
+		os.Getenv("DB_PASSWORD"),
+		os.Getenv("DB_HOST"),
+		os.Getenv("DB_PORT"),
+		os.Getenv("DB_NAME"),
+		os.Getenv("DB_SSLMODE"),
+	)
+
+	err = database.InitDB(dbConnString)
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
+	defer database.CloseDB()
 
 	app := fiber.New()
-	
+
+	// Middleware
 	app.Use(logger.New())
-	
+
+	// Initialize handlers
 	userHandler := handlers.NewUserHandler(database.DB)
+	authHandler := handlers.NewAuthHandler(database.DB)
 
-	app.Post("/users", userHandler.CreateUser)
-	app.Put("/users/:id", userHandler.UpdateUser)
+	// Routes
+	app.Post("/login", authHandler.Login)
 
-	log.Fatal(app.Listen(":3000"))
+	// Coba implementasi tanpa group
+	// app.Post("/logout", middleware.AuthMiddleware, authHandler.Logout)
+	
+	// Protected routes
+	protected := app.Group("", middleware.AuthMiddleware)
+	{
+		protected.Post("/logout", authHandler.Logout)
+		protected.Post("/users", userHandler.CreateUser)
+		protected.Put("/users/:id", userHandler.UpdateUser)
+	}
+
+	// Start server
+	log.Fatal(app.Listen(":" + os.Getenv("PORT")))
 }
