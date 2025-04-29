@@ -46,6 +46,7 @@ func main() {
 	userHandler := handlers.NewUserHandler(database.DB)
 	authHandler := handlers.NewAuthHandler(database.DB)
 	carouselHandler := handlers.NewCarouselHandler(database.DB)
+	productHandler := handlers.NewProductHandler(database.DB)
 
 	// Routes
 	app.Post("/login", authHandler.Login)
@@ -66,6 +67,11 @@ func main() {
 		protected.Put("/carousel/:id", carouselHandler.UpdateCarousel)
 		protected.Delete("/carousel/:id", carouselHandler.DeleteCarousel)
 		protected.Get("/carousel", carouselHandler.GetCarousels)
+
+		protected.Post("/products", productHandler.CreateProduct)
+		protected.Put("/products/:id", productHandler.UpdateProduct)
+		protected.Delete("/products/:id", productHandler.DeleteProduct)
+		protected.Get("/products", productHandler.GetProducts)
 		// adminGroup := protected.Group("", middleware.AdminMiddleware)
 		// adminGroup.Post("/carousel", carouselHandler.CreateCarousel)
 	}
