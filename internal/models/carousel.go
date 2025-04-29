@@ -25,3 +25,17 @@ type CarouselCreateRequest struct {
 	Status	  	bool   `json:"status" validate:"required"`
 }
 
+type CarouselUpdateRequest struct {
+    Title       string `form:"title,omitempty" validate:"max=100"`
+    Description string `form:"description,omitempty"`
+    Status      *bool  `form:"status,omitempty"`
+}
+
+type CarouselResponse struct {
+    ID          int        `json:"id"`
+    Image       string     `json:"image"`
+    Title       string     `json:"title"`
+    Description string     `json:"description,omitempty"`
+    Status      bool       `json:"status"`
+    CreatedAt   time.Time  `json:"created_at"`
+}

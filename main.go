@@ -63,6 +63,9 @@ func main() {
 		protected.Delete("/users/:id", userHandler.DeleteUser)
 
 		protected.Post("/carousel", carouselHandler.CreateCarousel)
+		protected.Put("/carousel/:id", carouselHandler.UpdateCarousel)
+		protected.Delete("/carousel/:id", carouselHandler.DeleteCarousel)
+		protected.Get("/carousel", carouselHandler.GetCarousels)
 		// adminGroup := protected.Group("", middleware.AdminMiddleware)
 		// adminGroup.Post("/carousel", carouselHandler.CreateCarousel)
 	}
