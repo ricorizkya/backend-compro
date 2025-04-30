@@ -49,6 +49,7 @@ func main() {
 	productHandler := handlers.NewProductHandler(database.DB)
 	portfolioImagesHandler := handlers.NewPortfolioHandler(database.DB)
 	portfolioReviewsHandler := handlers.NewPortfolioHandler(database.DB)
+	messagesHandler := handlers.NewMessagesHandler(database.DB)
 
 	// Routes
 	app.Post("/login", authHandler.Login)
@@ -89,6 +90,13 @@ func main() {
 		protected.Put("/portfolio/reviews/:id", portfolioReviewsHandler.UpdatePortfolioReview)
 		protected.Delete("/portfolio/reviews/:id", portfolioReviewsHandler.DeletePortfolioReview)
 		protected.Get("/portfolio/reviews", portfolioReviewsHandler.GetPortfolioReviews)
+
+		// Messages
+		protected.Post("/messages", messagesHandler.CreateMessage)
+		protected.Put("/messages/:id", messagesHandler.UpdateMessage)
+		protected.Delete("/messages/:id", messagesHandler.DeleteMessage)
+		protected.Get("/messages", messagesHandler.GetMessages)
+
 		// adminGroup := protected.Group("", middleware.AdminMiddleware)
 		// adminGroup.Post("/carousel", carouselHandler.CreateCarousel)
 	}
