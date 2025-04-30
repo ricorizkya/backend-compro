@@ -46,7 +46,9 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
     query := `SELECT id, password, role FROM users WHERE username = $1 AND deleted_at IS NULL`
     err := h.db.QueryRow(context.Background(), query, req.Username).Scan(
         &user.ID,
+        &user.Username,
         &user.Password,
+        &user.Name,
         &user.Role,
     )
 
@@ -81,9 +83,17 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
         })
     }
 
+    userResponse := models.UserLoginResponse{
+        ID:       user.ID,
+        Username: user.Username,
+        Name:    user.Name,
+        Role:     string(user.Role),
+    }
+
     return c.JSON(fiber.Map{
         "token":   signedToken,
         "expires": claims.ExpiresAt.Time.Format(time.RFC3339),
+        "user":    userResponse,
     })
 }
 

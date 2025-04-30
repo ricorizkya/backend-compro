@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/joho/godotenv"
 )
@@ -39,6 +40,13 @@ func main() {
 
 	app := fiber.New()
 
+	app.Use(cors.New(cors.Config{
+        AllowOrigins: "*",
+        AllowMethods: "GET,POST,HEAD,PUT,DELETE,PATCH,OPTIONS",
+        AllowHeaders: "*",
+        AllowCredentials: false,
+    }))
+
 	// Middleware
 	app.Use(logger.New())
 
@@ -53,9 +61,6 @@ func main() {
 
 	// Routes
 	app.Post("/login", authHandler.Login)
-
-	// Coba implementasi tanpa group
-	// app.Get("/users", middleware.AuthMiddleware, userHandler.GetUsers)
 	
 	// Protected routes
 	protected := app.Group("", middleware.AuthMiddleware)
@@ -96,9 +101,6 @@ func main() {
 		protected.Put("/messages/:id", messagesHandler.UpdateMessage)
 		protected.Delete("/messages/:id", messagesHandler.DeleteMessage)
 		protected.Get("/messages", messagesHandler.GetMessages)
-
-		// adminGroup := protected.Group("", middleware.AdminMiddleware)
-		// adminGroup.Post("/carousel", carouselHandler.CreateCarousel)
 	}
 
 	// Start server
