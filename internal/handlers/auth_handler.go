@@ -9,6 +9,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -43,18 +44,23 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 
     // Cari user berdasarkan username
     var user models.User
-    query := `SELECT id, password, role FROM users WHERE username = $1 AND deleted_at IS NULL`
+    query := `SELECT id, username, name, password, role FROM users WHERE username = $1 AND deleted_at IS NULL` // Diperbaiki
     err := h.db.QueryRow(context.Background(), query, req.Username).Scan(
         &user.ID,
         &user.Username,
-        &user.Password,
         &user.Name,
+        &user.Password,
         &user.Role,
     )
 
     if err != nil {
-        return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-            "error": "Invalid username or password",
+        if err == pgx.ErrNoRows {
+            return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+                "error": "Invalid username or password",
+            })
+        }
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "Database error: " + err.Error(), // Untuk debugging
         })
     }
 

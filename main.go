@@ -60,6 +60,7 @@ func main() {
 	messagesHandler := handlers.NewMessagesHandler(database.DB)
 
 	// Routes
+	app.Post("/register", userHandler.RegisterUser)
 	app.Post("/login", authHandler.Login)
 	
 	// Protected routes

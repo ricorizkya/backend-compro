@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -517,4 +518,162 @@ func (h * UserHandler) DeleteUser(c * fiber.Ctx) error {
     return c.JSON(fiber.Map{
         "message": "User deleted successfully",
     })
+}
+
+// RegisterUser godoc
+// @Summary      Register new user
+// @Description  Create user account for public registration
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      models.RegisterRequest  true  "Registration data"
+// @Success      201  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]string
+// @Failure      409  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /register [post]
+func (h *UserHandler) RegisterUser(c *fiber.Ctx) error {
+    var req models.RegisterRequest
+    
+    // Parse request body
+    if err := c.BodyParser(&req); err != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": "Invalid request body",
+        })
+    }
+
+    // Validasi input khusus registrasi
+    if validationErr := validateRegistrationInput(req); validationErr != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(validationErr)
+    }
+
+    // Hash password
+    hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+    if err != nil {
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "Failed to process password",
+        })
+    }
+
+    // Set default role untuk registrasi publik
+    if req.Role == "" {
+        req.Role = string(models.RoleAdmin)
+    }
+
+    // Eksekusi query
+    query := `
+        INSERT INTO users (
+            name, 
+            phone, 
+            username, 
+            password, 
+            role
+        ) VALUES ($1, $2, $3, $4, $5)
+        RETURNING id
+    `
+
+    var userID int
+    err = h.db.QueryRow(context.Background(), query,
+        req.Name,
+        req.Phone,
+        req.Username,
+        string(hashedPassword),
+        req.Role,
+    ).Scan(&userID)
+
+    if err != nil {
+        if isUniqueConstraintViolation(err) {
+            return c.Status(fiber.StatusConflict).JSON(fiber.Map{
+                "error": "Username or phone number already exists",
+            })
+        }
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "Failed to create user",
+        })
+    }
+
+    return c.Status(fiber.StatusCreated).JSON(fiber.Map{
+        "id":      userID,
+        "message": "User registered successfully",
+    })
+}
+
+func validateRegistrationInput(req models.RegisterRequest) fiber.Map {
+    errors := make(map[string]string)
+    
+    // Validasi Nama
+    req.Name = strings.TrimSpace(req.Name)
+    if req.Name == "" {
+        errors["name"] = "Nama harus diisi"
+    } else if len(req.Name) < 3 {
+        errors["name"] = "Nama minimal 3 karakter"
+    } else if len(req.Name) > 100 {
+        errors["name"] = "Nama maksimal 100 karakter"
+    }
+
+    // Validasi Nomor Telepon
+    req.Phone = strings.TrimSpace(req.Phone)
+    if req.Phone == "" {
+        errors["phone"] = "Nomor telepon harus diisi"
+    } else {
+        // Cek apakah numeric
+        if _, err := strconv.Atoi(req.Phone); err != nil {
+            errors["phone"] = "Nomor telepon harus angka"
+        } else if len(req.Phone) < 10 {
+            errors["phone"] = "Nomor telepon minimal 10 digit"
+        } else if len(req.Phone) > 15 {
+            errors["phone"] = "Nomor telepon maksimal 15 digit"
+        }
+    }
+
+    // Validasi Username
+    req.Username = strings.TrimSpace(req.Username)
+    if req.Username == "" {
+        errors["username"] = "Username harus diisi"
+    } else if len(req.Username) < 5 {
+        errors["username"] = "Username minimal 5 karakter"
+    } else if len(req.Username) > 50 {
+        errors["username"] = "Username maksimal 50 karakter"
+    } else {
+        // Cek format username (hanya huruf, angka, dan underscore)
+        matched, _ := regexp.MatchString(`^[a-zA-Z0-9_]+$`, req.Username)
+        if !matched {
+            errors["username"] = "Username hanya boleh mengandung huruf, angka, dan underscore"
+        }
+    }
+
+    // Validasi Password
+    req.Password = strings.TrimSpace(req.Password)
+    if req.Password == "" {
+        errors["password"] = "Password harus diisi"
+    } else if len(req.Password) < 8 {
+        errors["password"] = "Password minimal 8 karakter"
+    } else if len(req.Password) > 72 {
+        errors["password"] = "Password maksimal 72 karakter"
+    } else {
+        // Cek kompleksitas password
+        var (
+            hasUpper  = regexp.MustCompile(`[A-Z]`).MatchString(req.Password)
+            hasLower  = regexp.MustCompile(`[a-z]`).MatchString(req.Password)
+            hasNumber = regexp.MustCompile(`[0-9]`).MatchString(req.Password)
+        )
+        
+        if !hasUpper {
+            errors["password"] = "Password harus mengandung minimal 1 huruf besar"
+        }
+        if !hasLower {
+            errors["password"] = "Password harus mengandung minimal 1 huruf kecil"
+        }
+        if !hasNumber {
+            errors["password"] = "Password harus mengandung minimal 1 angka"
+        }
+    }
+
+    if len(errors) > 0 {
+        return fiber.Map{
+            "error":   "Validasi gagal",
+            "details": errors,
+        }
+    }
+    return nil
 }

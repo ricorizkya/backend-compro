@@ -62,3 +62,11 @@ type UserResponse struct {
     EditedAt  *time.Time `json:"edited_at"`
     EditedBy  *int       `json:"edited_by"`
 }
+
+type RegisterRequest struct {
+    Name     string `json:"name" validate:"required,min=3,max=100"`
+    Phone    string `json:"phone" validate:"required,numeric,min=10,max=15"`
+    Username string `json:"username" validate:"required,min=5,max=50"`
+    Password string `json:"password" validate:"required,min=8,max=72"`
+    Role    string `json:"role" validate:"required,oneof=admin staff user"`
+}
