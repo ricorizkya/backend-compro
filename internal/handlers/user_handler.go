@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -676,4 +677,66 @@ func validateRegistrationInput(req models.RegisterRequest) fiber.Map {
         }
     }
     return nil
+}
+
+// GetUserByID godoc
+// @Summary      Get user by ID
+// @Description  Retrieve user details by user ID
+// @Tags         users
+// @Accept       json
+// @Produce      json
+// @Param        id   path      int  true  "User ID"
+// @Security     ApiKeyAuth
+// @Success      200  {object}  models.UserResponse
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /users/{id} [get]
+func (h *UserHandler) GetUserByID(c *fiber.Ctx) error {
+    // Parse ID dari parameter URL
+    userID := c.Params("id")
+    id, err := strconv.Atoi(userID)
+    if err != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": "Invalid user ID format",
+        })
+    }
+
+    // Query ke database
+    query := `
+        SELECT 
+            id,
+            name,
+            username,
+            phone,
+            role,
+            created_at,
+            created_by
+        FROM users 
+        WHERE id = $1 AND deleted_at IS NULL
+    `
+    
+    var user models.UserResponse
+    err = h.db.QueryRow(context.Background(), query, id).Scan(
+        &user.ID,
+        &user.Name,
+        &user.Username,
+        &user.Phone,
+        &user.Role,
+        &user.CreatedAt,
+        &user.CreatedBy,
+    )
+
+    if err != nil {
+        if err == pgx.ErrNoRows {
+            return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+                "error": "User not found",
+            })
+        }
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "Failed to fetch user: " + err.Error(),
+        })
+    }
+
+    return c.JSON(user)
 }

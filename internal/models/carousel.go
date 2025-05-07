@@ -38,4 +38,5 @@ type CarouselResponse struct {
     Description string     `json:"description,omitempty"`
     Status      bool       `json:"status"`
     CreatedAt   time.Time  `json:"created_at"`
+    CreatedBy   int        `json:"created_by"`
 }

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -467,4 +468,66 @@ func (h *CarouselHandler) GetCarousels(c *fiber.Ctx) error {
             "totalPages": int(math.Ceil(float64(total) / float64(limit))),
         },
     })
+}
+
+// GetCarouselByID godoc
+// @Summary      Get carousel by ID
+// @Description  Retrieve carousel details by carousel ID
+// @Tags         carousels
+// @Accept       json
+// @Produce      json
+// @Param        id   path      int  true  "Carousel ID"
+// @Security     ApiKeyAuth
+// @Success      200  {object}  models.CarouselResponse
+// @Failure      400  {object}  map[string]string
+// @Failure      404  {object}  map[string]string
+// @Failure      500  {object}  map[string]string
+// @Router       /carousel/{id} [get]
+func (h *CarouselHandler) GetCarouselByID(c *fiber.Ctx) error {
+    // Parse ID dari parameter URL
+    carouselID := c.Params("id")
+    id, err := strconv.Atoi(carouselID)
+    if err != nil {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": "Invalid carousel ID format",
+        })
+    }
+
+    // Query ke database
+    query := `
+        SELECT 
+            id,
+            image, 
+            title, 
+            description, 
+            status,
+            created_at,
+            created_by
+        FROM carousel 
+        WHERE id = $1 AND deleted_at IS NULL
+    `
+    
+    var carousel models.CarouselResponse
+    err = h.db.QueryRow(context.Background(), query, id).Scan(
+        &carousel.ID,
+        &carousel.Image,
+        &carousel.Title,
+        &carousel.Description,
+        &carousel.Status,
+        &carousel.CreatedAt,
+        &carousel.CreatedBy,
+    )
+
+    if err != nil {
+        if err == pgx.ErrNoRows {
+            return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+                "error": "Carousel not found",
+            })
+        }
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": "Failed to fetch carousel: " + err.Error(),
+        })
+    }
+
+    return c.JSON(carousel)
 }
