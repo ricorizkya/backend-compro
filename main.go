@@ -112,6 +112,7 @@ func main() {
 		protected.Put("/messages/:id", messagesHandler.UpdateMessage)
 		protected.Delete("/messages/:id", messagesHandler.DeleteMessage)
 		protected.Get("/messages", messagesHandler.GetMessages)
+		protected.Get("/messages/:id", messagesHandler.GetMessageByID)
 	}
 
 	// Start server
